@@ -1,0 +1,6 @@
+streamlit>=1.33
+wfdb>=4.1.2
+neurokit2>=0.2.7
+numpy>=1.26
+pandas>=2.2
+matplotlib>=3.8
