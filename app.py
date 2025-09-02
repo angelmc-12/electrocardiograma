@@ -3,6 +3,7 @@ import os
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import wfdb
 
 from utils.ekg import (
     load_wfdb_record, pick_lead, clean_ecg,
