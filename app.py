@@ -58,11 +58,11 @@ with st.sidebar:
     show_grid = st.checkbox("Mostrar papel EKG", value=True)
     clean_toggle = st.checkbox("Limpiar señal (neurokit2.ecg_clean)", value=True)
     range_ok = st.slider("Rango normal FC (lpm)", 40, 140, (60,100))
-    show_montage = st.checkbox("Vista rápida 12 derivaciones (montaje 3×4)", value=False)
+    # show_montage = st.checkbox("Vista rápida 12 derivaciones (montaje 3×4)", value=False)
 
     # Controles de performance para el montaje
-    montage_seconds = st.slider("Segs en montaje (3–4 sugerido)", 2, 6, 3)
-    montage_clean = st.checkbox("Limpieza en montaje (lenta)", value=False)
+    # montage_seconds = st.slider("Segs en montaje (3–4 sugerido)", 2, 6, 3)
+    # montage_clean = st.checkbox("Limpieza en montaje (lenta)", value=False)
 
 # ------------------ Clasificación (inferencia) ------------------
 LABEL_NAMES = ["Sinus Bradycardia", "Sinus Rhythm", "Atrial Fibrillation", "Sinus Tachycardia"]
@@ -231,64 +231,64 @@ with tab_vis:
     st.plotly_chart(fig, use_container_width=True)
 
     # ---- Montaje 12 derivaciones (rápido) ----
-    if show_montage and signal.shape[1] >= 2:
-        rows, cols = 3, 4
-        rtot = min(rows * cols, signal.shape[1])
-        seconds_montage = montage_seconds  # del sidebar
+    # if show_montage and signal.shape[1] >= 2:
+    #     rows, cols = 3, 4
+    #     rtot = min(rows * cols, signal.shape[1])
+    #     seconds_montage = montage_seconds  # del sidebar
 
-        with st.spinner("Preparando montaje 12 derivaciones…"):
-            montage_data = get_montage_series(signal, fs, seconds_montage, montage_clean, max_points=2000)
+    #     with st.spinner("Preparando montaje 12 derivaciones…"):
+    #         montage_data = get_montage_series(signal, fs, seconds_montage, montage_clean, max_points=2000)
 
-        figm = make_subplots(
-            rows=rows, cols=cols, shared_xaxes=True, shared_yaxes=False,
-            vertical_spacing=0.06, horizontal_spacing=0.04,
-            subplot_titles=sig_names[:rtot]
-        )
+    #     figm = make_subplots(
+    #         rows=rows, cols=cols, shared_xaxes=True, shared_yaxes=False,
+    #         vertical_spacing=0.06, horizontal_spacing=0.04,
+    #         subplot_titles=sig_names[:rtot]
+    #     )
 
-        # Shapes por subgráfico (reutilizables por rango)
-        grid_shapes_cache = {}
+    #     # Shapes por subgráfico (reutilizables por rango)
+    #     grid_shapes_cache = {}
 
-        for i in range(rtot):
-            r = i // cols + 1
-            c = i % cols + 1
+    #     for i in range(rtot):
+    #         r = i // cols + 1
+    #         c = i % cols + 1
 
-            t_ds, y_ds, y0i, y1i = montage_data[i]
-            figm.add_trace(
-                go.Scattergl(
-                    x=t_ds, y=y_ds, mode="lines", line=dict(width=1),
-                    hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>",
-                    name=sig_names[i]
-                ),
-                row=r, col=c
-            )
-            figm.update_yaxes(range=[y0i, y1i], row=r, col=c)
+    #         t_ds, y_ds, y0i, y1i = montage_data[i]
+    #         figm.add_trace(
+    #             go.Scattergl(
+    #                 x=t_ds, y=y_ds, mode="lines", line=dict(width=1),
+    #                 hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>",
+    #                 name=sig_names[i]
+    #             ),
+    #             row=r, col=c
+    #         )
+    #         figm.update_yaxes(range=[y0i, y1i], row=r, col=c)
 
-            if show_grid:
-                key = (0, seconds_montage, round(y0i, 2), round(y1i, 2))
-                if key not in grid_shapes_cache:
-                    # Colores un toque más suaves en el montaje
-                    grid_shapes_cache[key] = apply_ekg_grid_shapes(
-                        0, seconds_montage, y0i, y1i,
-                        x_minor=0.04, x_major=0.20, y_minor=0.1, y_major=0.5,
-                        minor_color="#ffebee", major_color="#ffcdd2",
-                        minor_w=0.4, major_w=0.8
-                    )
-                for sh in grid_shapes_cache[key]:
-                    figm.add_shape(sh, row=r, col=c)
+    #         if show_grid:
+    #             key = (0, seconds_montage, round(y0i, 2), round(y1i, 2))
+    #             if key not in grid_shapes_cache:
+    #                 # Colores un toque más suaves en el montaje
+    #                 grid_shapes_cache[key] = apply_ekg_grid_shapes(
+    #                     0, seconds_montage, y0i, y1i,
+    #                     x_minor=0.04, x_major=0.20, y_minor=0.1, y_major=0.5,
+    #                     minor_color="#ffebee", major_color="#ffcdd2",
+    #                     minor_w=0.4, major_w=0.8
+    #                 )
+    #             for sh in grid_shapes_cache[key]:
+    #                 figm.add_shape(sh, row=r, col=c)
 
-        figm.update_layout(
-            height=700,
-            margin=dict(l=20, r=20, t=40, b=20),
-            showlegend=False
-        )
-        # Etiquetas compactas
-        for ax in figm.layout:
-            if ax.startswith("yaxis"):
-                getattr(figm.layout, ax).zeroline = False
-            if ax.startswith("xaxis"):
-                getattr(figm.layout, ax).title = "s"
+    #     figm.update_layout(
+    #         height=700,
+    #         margin=dict(l=20, r=20, t=40, b=20),
+    #         showlegend=False
+    #     )
+    #     # Etiquetas compactas
+    #     for ax in figm.layout:
+    #         if ax.startswith("yaxis"):
+    #             getattr(figm.layout, ax).zeroline = False
+    #         if ax.startswith("xaxis"):
+    #             getattr(figm.layout, ax).title = "s"
 
-        st.plotly_chart(figm, use_container_width=True)
+    #     st.plotly_chart(figm, use_container_width=True)
 
     with st.expander("Metadatos del registro"):
         st.write({
