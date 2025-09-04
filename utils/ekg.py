@@ -71,3 +71,59 @@ def list_local_records(data_dir="data"):
                 bases.append(os.path.join(data_dir, base))
     bases.sort()
     return bases
+
+def apply_ekg_grid_shapes(x0, x1, y0, y1,
+                          x_minor=0.04, x_major=0.20,
+                          y_minor=0.1, y_major=0.5,
+                          minor_color="#ffcccc", major_color="#ff9999",
+                          minor_w=0.5, major_w=1.0):
+    """
+    Devuelve una lista de shapes (Plotly) que dibujan la cuadrícula tipo papel EKG.
+    - Líneas menores: 0.04 s (x) y 0.1 mV (y)
+    - Líneas mayores: 0.20 s (x) y 0.5 mV (y)
+    """
+    shapes = []
+    # Verticales menores y mayores
+    x = x0
+    while x <= x1 + 1e-9:
+        is_major = (abs((x - x0) / x_major - round((x - x0) / x_major)) < 1e-6)
+        shapes.append(dict(
+            type="line", x0=x, x1=x, y0=y0, y1=y1,
+            line=dict(color=major_color if is_major else minor_color,
+                      width=major_w if is_major else minor_w)
+        ))
+        x += x_minor
+    # Horizontales menores y mayores
+    y = y0
+    while y <= y1 + 1e-9:
+        is_major = (abs((y - y0) / y_major - round((y - y0) / y_major)) < 1e-6)
+        shapes.append(dict(
+            type="line", x0=x0, x1=x1, y0=y, y1=y,
+            line=dict(color=major_color if is_major else minor_color,
+                      width=major_w if is_major else minor_w)
+        ))
+        y += y_minor
+    return shapes
+
+def compute_rr_intervals(r_idx, fs: int):
+    """Devuelve RR en muestras y en segundos (np.arrays)."""
+    if r_idx is None or len(r_idx) < 2:
+        return np.array([]), np.array([])
+    rr = np.diff(r_idx).astype(float)
+    return rr, rr / fs
+
+def nice_ylim(y, pad_ratio=0.15, min_pad=0.4):
+    """Devuelve (ymin, ymax) con padding agradable y redondeo a múltiplos de 0.5 mV."""
+    y = np.asarray(y)
+    y_min = float(np.nanmin(y)); y_max = float(np.nanmax(y))
+    rng = y_max - y_min
+    pad = max(min_pad, pad_ratio * (rng if rng > 0 else 1.0))
+    y0 = y_min - pad
+    y1 = y_max + pad
+    # Redondear a múltiplos de 0.5 mV para que el papel mayor quede alineado
+    def round_to_half(v, up=False):
+        return (np.floor(v*2)/2.0) if not up else (np.ceil(v*2)/2.0)
+    return round_to_half(y0), round_to_half(y1, up=True)
+
+def build_speed_gain_badge(speed_mm_s=25, gain_mm_mV=10):
+    return f'<span class="badge">Velocidad: {speed_mm_s} mm/s</span><span class="badge">Ganancia: {gain_mm_mV} mm/mV</span>'
