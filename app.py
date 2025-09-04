@@ -1,49 +1,69 @@
 # app.py
 import os
-import streamlit as st
+import io
 import numpy as np
-import matplotlib.pyplot as plt
+import pandas as pd
+import streamlit as st
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import torch
+import torch.nn as nn
 import wfdb
 
 from utils.ekg import (
     load_wfdb_record, pick_lead, clean_ecg,
-    detect_r_and_hr, apply_ekg_grid, list_local_records
+    detect_r_and_hr, apply_ekg_grid_shapes, list_local_records,
+    compute_rr_intervals, nice_ylim, build_speed_gain_badge
 )
 
-st.set_page_config(page_title="ECG Explorer", layout="wide")
+# ------------------ Config & Título ------------------
+st.set_page_config(page_title="ECG Explorer — 12 derivaciones", layout="wide")
+st.markdown("""
+<style>
+/* Badge estilo “pill” */
+.badge {display:inline-block;padding:4px 10px;border-radius:999px;font-weight:600;font-size:12px;margin-right:6px;}
+.badge-ok {background:#e8f5e9;color:#256029;border:1px solid #c8e6c9;}
+.badge-warn {background:#fff3e0;color:#8a4f00;border:1px solid #ffe0b2;}
+.badge-alert {background:#ffebee;color:#b71c1c;border:1px solid #ffcdd2;}
+.kpi-card {border:1px solid #eaeaea;border-radius:14px;padding:12px 16px;margin:0 8px;background:white;}
+.kpi-value {font-size:28px;font-weight:700;margin:0;}
+.kpi-label {font-size:12px;color:#666;margin:0;}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("ECG Explorer — 12 derivaciones")
 
-# ---------- Sidebar: selección de registro y opciones ----------
+# ------------------ Sidebar ------------------
 records = list_local_records("data")
 if not records:
     st.error("No se encontraron registros WFDB en ./data (parejas .hea/.mat).")
     st.stop()
 
-rec_base = st.sidebar.selectbox("Registro", records, index=0)
-lead_names_default = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6']
+with st.sidebar:
+    st.header("Opciones")
+    rec_base = st.selectbox("Registro", records, index=0)
+    lead_names_default = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6']
 
-# Carga registro
-record, signal, fs, sig_names = load_wfdb_record(rec_base)
-if len(sig_names) != signal.shape[1]:
-    sig_names = lead_names_default[:signal.shape[1]]
+    # Carga registro
+    record, signal, fs, sig_names = load_wfdb_record(rec_base)
+    if len(sig_names) != signal.shape[1]:
+        sig_names = lead_names_default[:signal.shape[1]]
 
-lead_name = st.sidebar.selectbox("Derivación", sig_names, index=1 if 'II' in sig_names else 0)
-lead_idx = sig_names.index(lead_name)
+    # Selección de derivación (por defecto II si está)
+    default_idx = sig_names.index('II') if 'II' in sig_names else 0
+    lead_name = st.selectbox("Derivación", sig_names, index=default_idx)
+    lead_idx = sig_names.index(lead_name)
 
-seconds = st.sidebar.slider("Segundos a mostrar", min_value=2, max_value=10, value=5)
-show_grid = st.sidebar.checkbox("Mostrar papel EKG", value=True)
-clean_toggle = st.sidebar.checkbox("Limpiar señal (neurokit2.ecg_clean)", value=True)
-range_ok = st.sidebar.slider("Rango normal FC (lpm)", 40, 140, (60,100))
+    seconds = st.slider("Segundos a mostrar", min_value=2, max_value=10, value=5)
+    show_grid = st.checkbox("Mostrar papel EKG", value=True)
+    clean_toggle = st.checkbox("Limpiar señal (neurokit2.ecg_clean)", value=True)
+    range_ok = st.slider("Rango normal FC (lpm)", 40, 140, (60,100))
+    show_montage = st.checkbox("Vista rápida 12 derivaciones (montaje 3×4)", value=False)
 
-# --- Clasificación (inferencia) ---
-import torch
-import torch.nn as nn
-
-# Las 4 clases que entrenaste
+# ------------------ Clasificación (inferencia) ------------------
 LABEL_NAMES = ["Sinus Bradycardia", "Sinus Rhythm", "Atrial Fibrillation", "Sinus Tachycardia"]
-MODEL_PATH = "models/best_ecgnet.pt"  # ruta al modelo entrenado
+MODEL_PATH = "models/best_ecgnet.pt"
 
-# Define la misma arquitectura que usaste para entrenar
 class ECGNet(nn.Module):
     def __init__(self, in_ch=12, n_cls=4):
         super().__init__()
@@ -79,10 +99,6 @@ def load_classifier():
     return model, device
 
 def preprocess_12lead_for_model_from_base(rec_base):
-    """
-    Lee el registro completo en 12 derivaciones desde rec_base (sin extensión),
-    lo normaliza (z-score por canal) y devuelve tensor (1,12,5000).
-    """
     sig, fields = wfdb.rdsamp(rec_base)  # (N, 12)
     target_len = 5000
     n = sig.shape[0]
@@ -94,7 +110,6 @@ def preprocess_12lead_for_model_from_base(rec_base):
     else:
         pad = target_len - n
         x = np.pad(sig, ((0,pad),(0,0)), mode="constant")
-    # normalización por canal
     x = x.astype(np.float32)
     m = x.mean(axis=0, keepdims=True)
     s = x.std(axis=0, keepdims=True) + 1e-7
@@ -103,85 +118,191 @@ def preprocess_12lead_for_model_from_base(rec_base):
     x = np.expand_dims(x, 0)  # (1,12,5000)
     return torch.from_numpy(x).float()
 
-# ---------- Procesamiento ----------
+# ------------------ Procesamiento señal ------------------
 ecg = pick_lead(signal, lead_idx)
 ecg_proc = clean_ecg(ecg, fs) if clean_toggle else ecg
 
 r_idx, hr_inst, hr_mean, status = detect_r_and_hr(ecg_proc, fs)
+rr, rr_s = compute_rr_intervals(r_idx, fs)
 
-# Alerta
+# ------------------ Alerta y KPIs (storytelling arriba) ------------------
 if np.isnan(hr_mean):
-    alerta = "⚠ No se pudo calcular FC."
-elif range_ok[0] <= hr_mean <= range_ok[1]:
-    alerta = f"✅ {status} (OK)"
+    alerta_txt = "No se pudo calcular FC."
+    alerta_class = "badge-alert"
 else:
-    alerta = f"⚠ {status} (fuera de rango {range_ok[0]}–{range_ok[1]} lpm)"
+    if range_ok[0] <= hr_mean <= range_ok[1]:
+        alerta_txt = f"FC media: {hr_mean:.1f} lpm — dentro de rango"
+        alerta_class = "badge-ok"
+    else:
+        alerta_txt = f"FC media: {hr_mean:.1f} lpm — fuera de rango {range_ok[0]}–{range_ok[1]} lpm"
+        alerta_class = "badge-alert"
 
-st.subheader(alerta)
+colA, colB, colC, colD = st.columns([1.2,1,1,1.2])
+with colA:
+    st.markdown(f'<span class="badge {alerta_class}">🩺 {alerta_txt}</span> {build_speed_gain_badge(25, 10)}', unsafe_allow_html=True)
+with colB:
+    st.markdown('<div class="kpi-card"><p class="kpi-value">{:.1f}</p><p class="kpi-label">FC media (lpm)</p></div>'.format(0 if np.isnan(hr_mean) else hr_mean), unsafe_allow_html=True)
+with colC:
+    beats = int(len(r_idx))
+    st.markdown(f'<div class="kpi-card"><p class="kpi-value">{beats}</p><p class="kpi-label">Latidos detectados</p></div>', unsafe_allow_html=True)
+with colD:
+    rr_mean = float(np.nanmean(rr_s)) if rr_s.size else np.nan
+    st.markdown('<div class="kpi-card"><p class="kpi-value">{}</p><p class="kpi-label">RR medio (s)</p></div>'.format("—" if np.isnan(rr_mean) else f"{rr_mean:.2f}"), unsafe_allow_html=True)
 
-# ---------- Plot ECG + picos R ----------
-N = int(seconds * fs)
-t = np.arange(len(ecg_proc)) / fs
-t_win, y_win = t[:N], ecg_proc[:N]
-r_win = r_idx[(r_idx >= 0) & (r_idx < N)]
+# ------------------ Tabs ------------------
+tab_vis, tab_hr, tab_cls = st.tabs(["👀 Visor", "📈 Frecuencia cardíaca", "🧠 Clasificación"])
 
-fig, ax = plt.subplots(figsize=(12, 4))
-ax.plot(t_win, y_win, color="black", linewidth=1, label="ECG")
-if r_win.size > 0:
-    ax.scatter(t_win[r_win], y_win[r_win], s=15, color="red", zorder=3, label="Picos R")
+# ========= Tab Visor =========
+with tab_vis:
+    N = int(seconds * fs)
+    t = np.arange(len(ecg_proc)) / fs
+    t_win, y_win = t[:N], ecg_proc[:N]
+    r_win = r_idx[(r_idx >= 0) & (r_idx < N)]
 
-if show_grid:
-    apply_ekg_grid(ax)
+    # Figura principal (interactiva con Plotly)
+    y0, y1 = nice_ylim(y_win)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=t_win, y=y_win, mode="lines", name=f"{lead_name}",
+        line=dict(width=1.2),
+        hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>"
+    ))
+    if r_win.size > 0:
+        fig.add_trace(go.Scatter(
+            x=t_win[r_win], y=y_win[r_win], mode="markers", name="Picos R",
+            marker=dict(size=7, symbol="diamond"), hovertemplate="R @ %{x:.3f} s<extra></extra>"
+        ))
 
-ax.set_xlim(0, seconds)
-# márgenes verticales agradables
-pad = max(0.5, 0.1 * (np.nanmax(y_win) - np.nanmin(y_win)))
-ax.set_ylim(np.nanmin(y_win)-pad, np.nanmax(y_win)+pad)
+    # Cuadrícula tipo papel EKG (shapes)
+    if show_grid:
+        fig.update_layout(shapes=apply_ekg_grid_shapes(
+            x0=0, x1=seconds, y0=y0, y1=y1,
+            x_minor=0.04, x_major=0.20, y_minor=0.1, y_major=0.5,
+            minor_color="#ffcccc", major_color="#ff9999", minor_w=0.5, major_w=1.0
+        ))
 
-ax.set_xlabel("Tiempo (s)")
-ax.set_ylabel("Amplitud (mV)")
-title = f"{os.path.basename(rec_base)} — {lead_name} — FS={fs} Hz"
-ax.set_title(title)
-ax.legend(loc="upper right")
-st.pyplot(fig, use_container_width=True)
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=40, b=20),
+        xaxis_title="Tiempo (s)",
+        yaxis_title="Amplitud (mV)",
+        xaxis=dict(range=[0, seconds], zeroline=False),
+        yaxis=dict(range=[y0, y1], zeroline=False),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-# ---------- Curva de FC (opcional) ----------
-if r_win.size > 0:
-    fig2, ax2 = plt.subplots(figsize=(12, 2.5))
-    ax2.plot(t[:N], hr_inst[:N], linewidth=1.2)
-    ax2.set_ylabel("FC (lpm)")
-    ax2.set_xlabel("Tiempo (s)")
-    ax2.set_title("Frecuencia cardíaca instantánea")
-    st.pyplot(fig2, use_container_width=True)
+    # Montaje 12 derivaciones (opcional, 5 s máx por performance)
+    if show_montage and signal.shape[1] >= 2:
+        seconds_montage = min(5, seconds)
+        Nm = int(seconds_montage * fs)
+        t_m = np.arange(Nm) / fs
 
-# ---------- Metadatos rápidos ----------
-with st.expander("Metadatos del registro"):
-    st.write({
-        "Frecuencia de muestreo (Hz)": fs,
-        "Nº muestras (lead seleccionado)": int(len(ecg)),
-        "Nº derivaciones": int(signal.shape[1]),
-        "Derivaciones": sig_names
-    })
+        rows, cols = 3, 4
+        rtot = min(rows*cols, signal.shape[1])
+        figm = make_subplots(rows=rows, cols=cols, shared_xaxes=True, shared_yaxes=False,
+                             vertical_spacing=0.06, horizontal_spacing=0.04,
+                             subplot_titles=sig_names[:rtot])
 
-st.caption("Nota: picos R y FC calculados con neurokit2; papel EKG: 1 mm=0.04 s y 0.1 mV; cuadros grandes=0.20 s y 0.5 mV.")
+        for i in range(rtot):
+            r = i//cols + 1
+            c = i%cols + 1
+            y = (clean_ecg(signal[:Nm, i], fs) if clean_toggle else signal[:Nm, i]).astype(float)
+            y0i, y1i = nice_ylim(y)
+            figm.add_trace(go.Scatter(x=t_m, y=y, mode="lines", line=dict(width=1),
+                                      hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>"),
+                           row=r, col=c)
+            if show_grid:
+                shapes = apply_ekg_grid_shapes(0, seconds_montage, y0i, y1i, 0.04, 0.20, 0.1, 0.5,
+                                               minor_color="#ffebee", major_color="#ffcdd2",
+                                               minor_w=0.4, major_w=0.8)
+                figm.update_layout(shapes=list(figm.layout.shapes) + shapes if figm.layout.shapes else shapes)
 
-# ---------- Clasificación automática ----------
-st.markdown("---")
-st.subheader("Clasificación automática (4 clases)")
+        figm.update_layout(height=700, margin=dict(l=20, r=20, t=40, b=20),
+                           showlegend=False)
+        for ax in figm.layout:
+            if ax.startswith("yaxis"):
+                getattr(figm.layout, ax).zeroline = False
+            if ax.startswith("xaxis"):
+                getattr(figm.layout, ax).title = "s"
+        st.plotly_chart(figm, use_container_width=True)
 
-if st.button("Clasificar este registro"):
-    try:
-        model, device = load_classifier()
-        x = preprocess_12lead_for_model_from_base(rec_base)
-        with torch.no_grad():
-            logits = model(x.to(device))
-            probs = torch.softmax(logits, dim=1).cpu().numpy().ravel()
-        pred_idx = int(np.argmax(probs))
-        pred_label = LABEL_NAMES[pred_idx]
-        st.success(f"Predicción: **{pred_label}**")
-        # Mostrar probabilidades en gráfico de barras
-        import pandas as pd
-        dfp = pd.DataFrame({"Clase": LABEL_NAMES, "Probabilidad": probs})
-        st.bar_chart(dfp.set_index("Clase"))
-    except Exception as e:
-        st.error(f"Ocurrió un error durante la clasificación: {e}")
+    with st.expander("Metadatos del registro"):
+        st.write({
+            "Frecuencia de muestreo (Hz)": fs,
+            "Nº muestras (lead seleccionado)": int(len(ecg)),
+            "Nº derivaciones": int(signal.shape[1]),
+            "Derivaciones": sig_names
+        })
+    st.caption("Reglas del papel: menor=0.04 s / 0.1 mV, mayor=0.20 s / 0.5 mV. Velocidad=25 mm/s, Ganancia=10 mm/mV.")
+
+# ========= Tab Frecuencia Cardíaca =========
+with tab_hr:
+    st.markdown("**Método:** detección de picos R (neurokit2) → FC instantánea por inverso del RR.")
+
+    # Serie de FC
+    N = int(seconds * fs)
+    t = np.arange(len(ecg_proc)) / fs
+    hr_win = hr_inst[:N] if hr_inst is not None else None
+
+    if hr_win is not None and np.isfinite(hr_win).any():
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(x=t[:N], y=hr_win, mode="lines", name="FC (lpm)",
+                                  hovertemplate="t=%{x:.2f} s<br>FC=%{y:.1f} lpm<extra></extra>"))
+        # Rango color de referencia
+        fig2.add_hrect(y0=range_ok[0], y1=range_ok[1], fillcolor="#e8f5e9", opacity=0.45, line_width=0)
+        fig2.update_layout(
+            margin=dict(l=20,r=20,t=40,b=10),
+            xaxis_title="Tiempo (s)",
+            yaxis_title="FC (lpm)",
+            showlegend=False
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+
+        # Descargables (HR y RR)
+        col1, col2 = st.columns(2)
+        with col1:
+            df_hr = pd.DataFrame({"t_s": t[:N], "HR_lpm": hr_win})
+            csv_hr = df_hr.to_csv(index=False).encode()
+            st.download_button("⬇️ Descargar FC (CSV)", data=csv_hr, file_name=f"{os.path.basename(rec_base)}_HR.csv", mime="text/csv")
+        with col2:
+            df_rr = pd.DataFrame({"RR_s": rr_s}) if rr_s.size else pd.DataFrame({"RR_s":[]})
+            csv_rr = df_rr.to_csv(index=False).encode()
+            st.download_button("⬇️ Descargar RR (CSV)", data=csv_rr, file_name=f"{os.path.basename(rec_base)}_RR.csv", mime="text/csv")
+    else:
+        st.warning("No se pudo calcular la serie de FC. Prueba otra derivación o habilita limpieza de señal.")
+
+# ========= Tab Clasificación =========
+with tab_cls:
+    st.markdown("Clasificación automática (4 clases) — *demo educativa*")
+    if st.button("🔎 Clasificar este registro"):
+        try:
+            model, device = load_classifier()
+            x = preprocess_12lead_for_model_from_base(rec_base)
+            with torch.no_grad():
+                logits = model(x.to(device))
+                probs = torch.softmax(logits, dim=1).cpu().numpy().ravel()
+            pred_idx = int(np.argmax(probs))
+            pred_label = LABEL_NAMES[pred_idx]
+            if pred_label == "Sinus Bradycardia":
+                color = "badge-warn"
+                note = "Frecuencia baja — verificar contexto clínico."
+            elif pred_label == "Sinus Tachycardia":
+                color = "badge-warn"
+                note = "Frecuencia alta — verificar desencadenantes."
+            elif pred_label == "Atrial Fibrillation":
+                color = "badge-alert"
+                note = "Ritmo irregular — evaluar trazado completo."
+            else:
+                color = "badge-ok"
+                note = "Ritmo sinusal."
+
+            st.markdown(f'<span class="badge {color}">Predicción: <b>{pred_label}</b></span> <span class="badge">{note}</span>', unsafe_allow_html=True)
+
+            dfp = pd.DataFrame({"Clase": LABEL_NAMES, "Probabilidad": probs})
+            figp = go.Figure(go.Bar(x=dfp["Clase"], y=dfp["Probabilidad"], text=[f"{p*100:.1f}%" for p in probs],
+                                    textposition="outside"))
+            figp.update_yaxes(range=[0, 1.0])
+            figp.update_layout(margin=dict(l=20,r=20,t=40,b=40), yaxis_title="Probabilidad", xaxis_title="")
+            st.plotly_chart(figp, use_container_width=True)
+        except Exception as e:
+            st.error(f"Ocurrió un error durante la clasificación: {e}")
