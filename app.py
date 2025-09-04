@@ -60,6 +60,10 @@ with st.sidebar:
     range_ok = st.slider("Rango normal FC (lpm)", 40, 140, (60,100))
     show_montage = st.checkbox("Vista rápida 12 derivaciones (montaje 3×4)", value=False)
 
+    # Controles de performance para el montaje
+    montage_seconds = st.slider("Segs en montaje (3–4 sugerido)", 2, 6, 3)
+    montage_clean = st.checkbox("Limpieza en montaje (lenta)", value=False)
+
 # ------------------ Clasificación (inferencia) ------------------
 LABEL_NAMES = ["Sinus Bradycardia", "Sinus Rhythm", "Atrial Fibrillation", "Sinus Tachycardia"]
 MODEL_PATH = "models/best_ecgnet.pt"
@@ -149,6 +153,40 @@ with colD:
     rr_mean = float(np.nanmean(rr_s)) if rr_s.size else np.nan
     st.markdown('<div class="kpi-card"><p class="kpi-value">{}</p><p class="kpi-label">RR medio (s)</p></div>'.format("—" if np.isnan(rr_mean) else f"{rr_mean:.2f}"), unsafe_allow_html=True)
 
+# ------------------ Cache para montaje (rápido) ------------------
+@st.cache_data(show_spinner=False)
+def get_montage_series(signal, fs, seconds, clean, max_points=2000):
+    """
+    Devuelve dict {lead_index: (t_ds, y_ds, y0, y1)} para hasta 12 derivaciones.
+    - Recorta a 'seconds'
+    - (Opcional) limpia (método 'biosppy' si está disponible)
+    - Downsamplea a ~max_points
+    """
+    import neurokit2 as nk
+    Nm = int(seconds * fs)
+    n_leads = min(12, signal.shape[1])
+    out = {}
+    t = np.arange(Nm) / fs
+
+    def downsample_xy(x, y, max_points=2000):
+        n = len(x)
+        if n <= max_points:
+            return x, y
+        idx = np.linspace(0, n - 1, max_points).astype(int)
+        return x[idx], y[idx]
+
+    for i in range(n_leads):
+        y = signal[:Nm, i].astype(float)
+        if clean:
+            try:
+                y = nk.ecg_clean(y, sampling_rate=fs, method="biosppy")
+            except Exception:
+                y = nk.ecg_clean(y, sampling_rate=fs)
+        t_ds, y_ds = downsample_xy(t, y, max_points=max_points)
+        y0, y1 = nice_ylim(y_ds)
+        out[i] = (t_ds, y_ds, y0, y1)
+    return out
+
 # ------------------ Tabs ------------------
 tab_vis, tab_hr, tab_cls = st.tabs(["👀 Visor", "📈 Frecuencia cardíaca", "🧠 Clasificación"])
 
@@ -159,18 +197,19 @@ with tab_vis:
     t_win, y_win = t[:N], ecg_proc[:N]
     r_win = r_idx[(r_idx >= 0) & (r_idx < N)]
 
-    # Figura principal (interactiva con Plotly)
+    # Figura principal (interactiva con Plotly, WebGL para fluidez)
     y0, y1 = nice_ylim(y_win)
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=t_win, y=y_win, mode="lines", name=f"{lead_name}",
         line=dict(width=1.2),
         hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>"
     ))
     if r_win.size > 0:
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=t_win[r_win], y=y_win[r_win], mode="markers", name="Picos R",
-            marker=dict(size=7, symbol="diamond"), hovertemplate="R @ %{x:.3f} s<extra></extra>"
+            marker=dict(size=7, symbol="diamond"),
+            hovertemplate="R @ %{x:.3f} s<extra></extra>"
         ))
 
     # Cuadrícula tipo papel EKG (shapes)
@@ -191,39 +230,64 @@ with tab_vis:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Montaje 12 derivaciones (opcional, 5 s máx por performance)
+    # ---- Montaje 12 derivaciones (rápido) ----
     if show_montage and signal.shape[1] >= 2:
-        seconds_montage = min(5, seconds)
-        Nm = int(seconds_montage * fs)
-        t_m = np.arange(Nm) / fs
-
         rows, cols = 3, 4
-        rtot = min(rows*cols, signal.shape[1])
-        figm = make_subplots(rows=rows, cols=cols, shared_xaxes=True, shared_yaxes=False,
-                             vertical_spacing=0.06, horizontal_spacing=0.04,
-                             subplot_titles=sig_names[:rtot])
+        rtot = min(rows * cols, signal.shape[1])
+        seconds_montage = montage_seconds  # del sidebar
+
+        with st.spinner("Preparando montaje 12 derivaciones…"):
+            montage_data = get_montage_series(signal, fs, seconds_montage, montage_clean, max_points=2000)
+
+        figm = make_subplots(
+            rows=rows, cols=cols, shared_xaxes=True, shared_yaxes=False,
+            vertical_spacing=0.06, horizontal_spacing=0.04,
+            subplot_titles=sig_names[:rtot]
+        )
+
+        # Shapes por subgráfico (reutilizables por rango)
+        grid_shapes_cache = {}
 
         for i in range(rtot):
-            r = i//cols + 1
-            c = i%cols + 1
-            y = (clean_ecg(signal[:Nm, i], fs) if clean_toggle else signal[:Nm, i]).astype(float)
-            y0i, y1i = nice_ylim(y)
-            figm.add_trace(go.Scatter(x=t_m, y=y, mode="lines", line=dict(width=1),
-                                      hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>"),
-                           row=r, col=c)
-            if show_grid:
-                shapes = apply_ekg_grid_shapes(0, seconds_montage, y0i, y1i, 0.04, 0.20, 0.1, 0.5,
-                                               minor_color="#ffebee", major_color="#ffcdd2",
-                                               minor_w=0.4, major_w=0.8)
-                figm.update_layout(shapes=list(figm.layout.shapes) + shapes if figm.layout.shapes else shapes)
+            r = i // cols + 1
+            c = i % cols + 1
 
-        figm.update_layout(height=700, margin=dict(l=20, r=20, t=40, b=20),
-                           showlegend=False)
+            t_ds, y_ds, y0i, y1i = montage_data[i]
+            figm.add_trace(
+                go.Scattergl(
+                    x=t_ds, y=y_ds, mode="lines", line=dict(width=1),
+                    hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>",
+                    name=sig_names[i]
+                ),
+                row=r, col=c
+            )
+            figm.update_yaxes(range=[y0i, y1i], row=r, col=c)
+
+            if show_grid:
+                key = (0, seconds_montage, round(y0i, 2), round(y1i, 2))
+                if key not in grid_shapes_cache:
+                    # Colores un toque más suaves en el montaje
+                    grid_shapes_cache[key] = apply_ekg_grid_shapes(
+                        0, seconds_montage, y0i, y1i,
+                        x_minor=0.04, x_major=0.20, y_minor=0.1, y_major=0.5,
+                        minor_color="#ffebee", major_color="#ffcdd2",
+                        minor_w=0.4, major_w=0.8
+                    )
+                for sh in grid_shapes_cache[key]:
+                    figm.add_shape(sh, row=r, col=c)
+
+        figm.update_layout(
+            height=700,
+            margin=dict(l=20, r=20, t=40, b=20),
+            showlegend=False
+        )
+        # Etiquetas compactas
         for ax in figm.layout:
             if ax.startswith("yaxis"):
                 getattr(figm.layout, ax).zeroline = False
             if ax.startswith("xaxis"):
                 getattr(figm.layout, ax).title = "s"
+
         st.plotly_chart(figm, use_container_width=True)
 
     with st.expander("Metadatos del registro"):
@@ -246,8 +310,8 @@ with tab_hr:
 
     if hr_win is not None and np.isfinite(hr_win).any():
         fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(x=t[:N], y=hr_win, mode="lines", name="FC (lpm)",
-                                  hovertemplate="t=%{x:.2f} s<br>FC=%{y:.1f} lpm<extra></extra>"))
+        fig2.add_trace(go.Scattergl(x=t[:N], y=hr_win, mode="lines", name="FC (lpm)",
+                                    hovertemplate="t=%{x:.2f} s<br>FC=%{y:.1f} lpm<extra></extra>"))
         # Rango color de referencia
         fig2.add_hrect(y0=range_ok[0], y1=range_ok[1], fillcolor="#e8f5e9", opacity=0.45, line_width=0)
         fig2.update_layout(
