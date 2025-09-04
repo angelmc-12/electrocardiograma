@@ -127,3 +127,29 @@ def nice_ylim(y, pad_ratio=0.15, min_pad=0.4):
 
 def build_speed_gain_badge(speed_mm_s=25, gain_mm_mV=10):
     return f'<span class="badge">Velocidad: {speed_mm_s} mm/s</span><span class="badge">Ganancia: {gain_mm_mV} mm/mV</span>'
+
+
+def downsample_xy(x, y, max_points=2000):
+    """Downsampling uniforme a ~max_points."""
+    n = len(x)
+    if n <= max_points:
+        return x, y
+    idx = np.linspace(0, n - 1, max_points).astype(int)
+    return x[idx], y[idx]
+
+def hash_array(a: np.ndarray) -> str:
+    """Hash rápido para cache (no criptográfico)."""
+    return hashlib.md5(a.tobytes()).hexdigest()
+
+def precompute_shapes_grid(x0, x1, y0, y1,
+                           x_minor=0.04, x_major=0.20,
+                           y_minor=0.1, y_major=0.5,
+                           minor_color="#ffebee", major_color="#ffcdd2",
+                           minor_w=0.4, major_w=0.8):
+    """Igual a apply_ekg_grid_shapes pero pensado para reutilizar shapes."""
+    from .ekg import apply_ekg_grid_shapes  # reutiliza tu versión
+    return apply_ekg_grid_shapes(
+        x0, x1, y0, y1,
+        x_minor, x_major, y_minor, y_major,
+        minor_color, major_color, minor_w, major_w
+    )
