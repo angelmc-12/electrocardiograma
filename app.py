@@ -26,7 +26,7 @@ st.markdown("""
 .badge-warn {background:#fff3e0;color:#8a4f00;border:1px solid #ffe0b2;}
 .badge-alert {background:#ffebee;color:#b71c1c;border:1px solid #ffcdd2;}
 .kpi-card {border:1px solid #eaeaea;border-radius:14px;padding:12px 16px;margin:0 8px;background:white;}
-.kpi-value {font-size:28px;font-weight:700;margin:0;}
+.kpi-value {font-size:28px;font-weight:700;margin:0;color:#2c3e50;} 
 .kpi-label {font-size:12px;color:#666;margin:0;}
 </style>
 """, unsafe_allow_html=True)
