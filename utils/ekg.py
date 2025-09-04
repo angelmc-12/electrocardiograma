@@ -4,6 +4,7 @@ import numpy as np
 import wfdb
 import neurokit2 as nk
 from matplotlib.ticker import MultipleLocator
+import hashlib
 
 def load_wfdb_record(basepath: str):
     """
