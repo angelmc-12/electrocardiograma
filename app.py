@@ -62,7 +62,7 @@ with st.sidebar:
 #                               INICIO
 # =====================================================================
 if selected == "📘 Inicio":
-    st.title("🩺 ECG Explorer — Plataforma Educativa")
+    st.title("🩺 ECG Interactivo — Aprendiendo y Explorando")
     st.markdown("""
     _Un visor interactivo para comprender y analizar electrocardiogramas (ECG) siguiendo las **reglas del papel electrocardiográfico**._
     
@@ -74,7 +74,7 @@ if selected == "📘 Inicio":
     - **O1 — Visualización con papel EKG**: Mostrar las señales de ECG con cuadrícula realista  
       (menor **0.04 s / 0.1 mV**, mayor **0.20 s / 0.5 mV**; velocidad **25 mm/s**, ganancia **10 mm/mV**).
     - **O2 — Frecuencia cardíaca**: Detectar **picos R** (neurokit2), calcular **FC instantánea** y **alertar** si está fuera de rango.
-    - **O3 — Modelado (opcional)**: Clasificación en 4 ritmos (**Sinus Bradycardia, Sinus Rhythm, Atrial Fibrillation, Sinus Tachycardia**).
+    - **O3 — Clasificación en 4 ritmos** (**Sinus Bradycardia, Sinus Rhythm, Atrial Fibrillation, Sinus Tachycardia**).
     """)
 
     st.subheader("🧾 ¿Qué datos se utilizan?")
@@ -107,14 +107,16 @@ if selected == "📘 Inicio":
     6. En **Clasificación**, ejecuta la **demo** del modelo (requiere `models/best_ecgnet.pt`).
     """)
 
-    st.subheader("📚 Fuentes y herramientas")
+    st.subheader("📚 Fuente de los datos")
     st.markdown("""
-    - **WFDB** (lectura de registros): `wfdb`  
-    - **NeuroKit2** (detección de picos R y FC): `neurokit2`  
-    - **Visualización**: `Plotly` + `Streamlit`  
-    - **Clasificación (demo)**: `PyTorch`
+    Los registros utilizados en esta plataforma provienen de **[PhysioNet](https://physionet.org/lightwave/?db=ecg-arrhythmia/1.0.0)**,  
+    un repositorio internacional de acceso abierto que recopila bases de datos biomédicas para investigación y educación.
+    
+    En particular, se emplea el conjunto **ECG Arrhythmia Database (v1.0.0)**, que contiene electrocardiogramas con distintas condiciones cardíacas.  
+    Esto permite **explorar ritmos normales y anómalos** en un entorno interactivo y educativo.
     """)
-    st.caption("Nota: la clasificación es de uso educativo y no reemplaza criterio clínico.")
+    
+    st.caption("⚠️ Importante: este recurso es de carácter educativo y no reemplaza criterio ni diagnóstico clínico profesional.")
 
     st.subheader("👨‍💻 Equipo / Autoría")
     st.markdown("""
