@@ -118,10 +118,22 @@ if selected == "📘 Inicio":
 
     st.subheader("👨‍💻 Equipo / Autoría")
     st.markdown("""
-    Esta herramienta se desarrolló con foco en pedagogía, visualización y análisis reproducible.
+    Esta herramienta se desarrolló con foco en pedagogía, visualización y análisis reproducible con los siguientes miembros:
 
-    **Tecnologías**: Python, Streamlit, Plotly, NeuroKit2, WFDB, PyTorch.  
-    **Estructura**: Introducción (esta página) + Explorador interactivo.
+    - **Mercedes Díaz Pichiule**  
+    Bachiller en Ingeniería Informática – Pontificia Universidad Católica del Perú
+
+    - **Ángel Mayta Coaguila**  
+    Ingeniero Civil - Universidad Alas Peruanas
+
+    - **Miguel Lescano Avalos**  
+    Bachiller en Ingeniería de Sistemas - Universidad Nacional de Ingeniería
+
+    - **Sun Ji Sánchez**  
+    Bachiller en Ingeniería Informática – Pontificia Universidad Católica del Perú
+
+    **Fecha de publicación:** Abril 2025  
+    **Ubicación:** Lima, Perú
     """)
 
 # =====================================================================
