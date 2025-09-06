@@ -312,10 +312,10 @@ elif selected == "📊 Explorador":
             # Amplitud pico-a-pico (útil para calibración/ganancia y ruido)
             y_min = float(np.nanmin(y_win))
             p2p = y_max - y_min
-            st.caption(f"🔎 **Pico máximo** en ventana: {y_max:.3f} mV a **t = {t_max:.3f} s** · "
+            st.success(f"**Pico máximo** en ventana: {y_max:.3f} mV a **t = {t_max:.3f} s** · "
                        f"**Amplitud pico-a-pico**: {p2p:.3f} mV")
         else:
-            st.caption("🔎 No hay datos válidos en la ventana seleccionada.")
+            st.warning("🔎 No hay datos válidos en la ventana seleccionada.")
         
         st.caption("Reglas del papel: menor=0.04 s / 0.1 mV, mayor=0.20 s / 0.5 mV. Velocidad=25 mm/s, Ganancia=10 mm/mV.")
 
@@ -406,7 +406,7 @@ elif selected == "📊 Explorador":
                         "buscar y tratar la **causa subyacente**."
                     ),
                 }
-                st.markdown(f"🩺 **Interpretación breve:** {EXPLAIN.get(pred_label, 'Interpretación no disponible.')}")
+                st.warning(f"🩺 **Interpretación breve:** {EXPLAIN.get(pred_label, 'Interpretación no disponible.')}")
 
                 dfp = pd.DataFrame({"Clase": LABEL_NAMES, "Probabilidad": probs})
                 figp = go.Figure(go.Bar(
