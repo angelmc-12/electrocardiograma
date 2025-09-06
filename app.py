@@ -295,13 +295,28 @@ elif selected == "📊 Explorador":
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        with st.expander("Metadatos del registro"):
-            st.write({
-                "Frecuencia de muestreo (Hz)": fs,
-                "Nº muestras (lead seleccionado)": int(len(ecg)),
-                "Nº derivaciones": int(signal.shape[1]),
-                "Derivaciones": sig_names
-            })
+        # with st.expander("Metadatos del registro"):
+        #     st.write({
+        #         "Frecuencia de muestreo (Hz)": fs,
+        #         "Nº muestras (lead seleccionado)": int(len(ecg)),
+        #         "Nº derivaciones": int(signal.shape[1]),
+        #         "Derivaciones": sig_names
+        #     })
+
+        # ---- Resumen bajo el gráfico: pico máximo y amplitud pico-a-pico en la ventana ----
+        if np.isfinite(y_win).any():
+            # Pico máximo (positivo) en la ventana
+            i_max = int(np.nanargmax(y_win))
+            t_max = float(t_win[i_max])
+            y_max = float(y_win[i_max])
+            # Amplitud pico-a-pico (útil para calibración/ganancia y ruido)
+            y_min = float(np.nanmin(y_win))
+            p2p = y_max - y_min
+            st.caption(f"🔎 **Pico máximo** en ventana: {y_max:.3f} mV a **t = {t_max:.3f} s** · "
+                       f"**Amplitud pico-a-pico**: {p2p:.3f} mV")
+        else:
+            st.caption("🔎 No hay datos válidos en la ventana seleccionada.")
+        
         st.caption("Reglas del papel: menor=0.04 s / 0.1 mV, mayor=0.20 s / 0.5 mV. Velocidad=25 mm/s, Ganancia=10 mm/mV.")
 
     # ========= Tab Frecuencia Cardíaca =========
@@ -331,6 +346,18 @@ elif selected == "📊 Explorador":
         else:
             st.warning("No se pudo calcular la serie de FC. Prueba otra derivación o habilita limpieza de señal.")
 
+        # ---- Conclusión dinámica sobre la FC media vs rango ----
+        if np.isnan(hr_mean):
+            st.info("ℹ️ No se pudo calcular la **frecuencia cardíaca promedio** en esta ventana.")
+        else:
+            lo, hi = range_ok
+            if hr_mean < lo:
+                st.warning(f"🧭 Conclusión: la **FC promedio ({hr_mean:.1f} lpm)** está **por debajo** del rango [{lo}, {hi}] lpm.")
+            elif hr_mean > hi:
+                st.warning(f"🧭 Conclusión: la **FC promedio ({hr_mean:.1f} lpm)** está **por encima** del rango [{lo}, {hi}] lpm.")
+            else:
+                st.success(f"🧭 Conclusión: la **FC promedio ({hr_mean:.1f} lpm)** está **dentro** del rango [{lo}, {hi}] lpm.")
+
     # ========= Tab Clasificación =========
     with tab_cls:
         st.markdown("Clasificación automática (4 clases) — *demo educativa*")
@@ -352,14 +379,43 @@ elif selected == "📊 Explorador":
                 else:
                     color = "badge-ok"; note = "Ritmo sinusal."
 
-                st.markdown(f'<span class="badge {color}">Predicción: <b>{pred_label}</b></span> <span class="badge">{note}</span>',
-                            unsafe_allow_html=True)
+                st.markdown(
+                    f'<span class="badge {color}">Predicción: <b>{pred_label}</b></span> '
+                    f'<span class="badge">{note}</span>',
+                    unsafe_allow_html=True
+                )
+
+                # ---- Explicación breve por clase predicha (encima del gráfico) ----
+                EXPLAIN = {
+                    "Sinus Bradycardia": (
+                        "Bradicardia sinusal: ritmo sinusal con **frecuencia baja**. "
+                        "Puede ser fisiológica (deportistas, descanso) o por fármacos/hipotiroidismo; "
+                        "valorar **síntomas** (mareos, síncope) y contexto clínico."
+                    ),
+                    "Sinus Rhythm": (
+                        "Ritmo sinusal: actividad auricular normal con onda P positiva y relación P–QRS 1:1. "
+                        "Frecuencia acorde al contexto clínico."
+                    ),
+                    "Atrial Fibrillation": (
+                        "Fibrilación auricular: **ritmo irregular** sin ondas P identificables; "
+                        "riesgo de **tromboembolismo**. Requiere valorar anticoagulación y control de frecuencia/ritmo."
+                    ),
+                    "Sinus Tachycardia": (
+                        "Taquicardia sinusal: ritmo sinusal con **frecuencia alta**. "
+                        "Suele ser respuesta a fiebre, dolor, hipovolemia, ansiedad o fármacos; "
+                        "buscar y tratar la **causa subyacente**."
+                    ),
+                }
+                st.markdown(f"🩺 **Interpretación breve:** {EXPLAIN.get(pred_label, 'Interpretación no disponible.')}")
 
                 dfp = pd.DataFrame({"Clase": LABEL_NAMES, "Probabilidad": probs})
-                figp = go.Figure(go.Bar(x=dfp["Clase"], y=dfp["Probabilidad"],
-                                        text=[f"{p*100:.1f}%" for p in probs], textposition="outside"))
-                figp.update_yaxes(range=[0, 1.0]); figp.update_layout(margin=dict(l=20,r=20,t=40,b=40),
-                                                                      yaxis_title="Probabilidad", xaxis_title="")
+                figp = go.Figure(go.Bar(
+                    x=dfp["Clase"], y=dfp["Probabilidad"],
+                    text=[f"{p*100:.1f}%" for p in probs], textposition="outside"
+                ))
+                figp.update_yaxes(range=[0, 1.0])
+                figp.update_layout(margin=dict(l=20,r=20,t=40,b=40),
+                                   yaxis_title="Probabilidad", xaxis_title="")
                 st.plotly_chart(figp, use_container_width=True)
             except Exception as e:
                 st.error(f"Ocurrió un error durante la clasificación: {e}")
