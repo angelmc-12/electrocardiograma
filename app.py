@@ -441,6 +441,3 @@ elif selected == "📊 Explorador":
     
             except Exception as e:
                 st.error(f"Ocurrió un error durante la clasificación: {e}")
-        
-                except Exception as e:
-                    st.error(f"Ocurrió un error durante la clasificación: {e}")
