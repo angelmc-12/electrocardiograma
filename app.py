@@ -166,7 +166,7 @@ elif selected == "📊 Explorador":
 
     # ------------------ Clasificación (inferencia) ------------------
     LABEL_NAMES = ["Sinus Bradycardia", "Sinus Rhythm", "Atrial Fibrillation", "Sinus Tachycardia"]
-    MODEL_PATH = "models/best_ecgnet.pt"
+    MODEL_PATH = "models/best_ecgnet (1).pt"
 
     class ECGNet(nn.Module):
         def __init__(self, in_ch=12, n_cls=4):
