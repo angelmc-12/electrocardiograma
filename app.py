@@ -370,7 +370,6 @@ with tab_cls:
         "Atrial Fibrillation": "Fibrilación auricular",
         "Sinus Tachycardia": "Taquicardia sinusal",
     }
-    # Orden en español alineado a LABEL_NAMES
     LABEL_NAMES_ES_ORDERED = [LABELS_ES[k] for k in LABEL_NAMES]
 
     if st.button("🔎 Clasificar este registro"):
@@ -385,19 +384,18 @@ with tab_cls:
             pred_label_en = LABEL_NAMES[pred_idx]
             pred_label_es = LABELS_ES[pred_label_en]
 
-            # Badge y nota contextual
+            # Badge solo con color por categoría
             if pred_label_en == "Sinus Bradycardia":
-                color = "badge-warn";
+                color = "badge-warn"
             elif pred_label_en == "Sinus Tachycardia":
-                color = "badge-warn";
+                color = "badge-warn"
             elif pred_label_en == "Atrial Fibrillation":
-                color = "badge-alert";
+                color = "badge-alert"
             else:
-                color = "badge-ok";
+                color = "badge-ok"
 
             st.markdown(
-                f'<span class="badge {color}">Predicción: <b>{pred_label_es}</b></span> '
-                f'<span class="badge">{note}</span>',
+                f'<span class="badge {color}">Predicción: <b>{pred_label_es}</b></span>',
                 unsafe_allow_html=True
             )
 
