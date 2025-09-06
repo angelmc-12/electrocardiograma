@@ -358,18 +358,10 @@ elif selected == "📊 Explorador":
                 st.success(f"🧭 Conclusión: la **FC promedio ({hr_mean:.1f} lpm)** está **dentro** del rango [{lo}, {hi}] lpm.")
 
     # ========= Tab Clasificación =========
+# ========= Tab Clasificación =========
     with tab_cls:
         st.markdown("Clasificación automática (4 clases) — *demo educativa*")
-
-        # Mapeo (EN->ES) y orden consistente
-        LABELS_ES = {
-            "Sinus Bradycardia": "Bradicardia sinusal",
-            "Sinus Rhythm": "Ritmo sinusal",
-            "Atrial Fibrillation": "Fibrilación auricular",
-            "Sinus Tachycardia": "Taquicardia sinusal",
-        }
-        LABEL_NAMES_ES_ORDERED = [LABELS_ES[k] for k in LABEL_NAMES]
-
+    
         if st.button("🔎 Clasificar este registro", key="classify_btn"):
             try:
                 model, device = load_classifier()
@@ -377,28 +369,27 @@ elif selected == "📊 Explorador":
                 with torch.no_grad():
                     logits = model(x.to(device))
                     probs = torch.softmax(logits, dim=1).cpu().numpy().ravel()
-
+    
                 pred_idx = int(np.argmax(probs))
-                pred_label_en = LABEL_NAMES[pred_idx]
-                pred_label_es = LABELS_ES[pred_label_en]
-
-                # Badge solo con color por categoría (sin 'note')
-                if pred_label_en == "Sinus Bradycardia":
+                pred_label = LABEL_NAMES[pred_idx]  # <-- Etiqueta original del modelo (inglés)
+    
+                # Badge con color por categoría (sin traducción de etiquetas)
+                if pred_label == "Sinus Bradycardia":
                     color = "badge-warn"
-                elif pred_label_en == "Sinus Tachycardia":
+                elif pred_label == "Sinus Tachycardia":
                     color = "badge-warn"
-                elif pred_label_en == "Atrial Fibrillation":
+                elif pred_label == "Atrial Fibrillation":
                     color = "badge-alert"
-                else:
+                else:  # "Sinus Rhythm"
                     color = "badge-ok"
-
+    
                 st.markdown(
-                    f'<span class="badge {color}">Predicción: <b>{pred_label_es}</b></span>',
+                    f'<span class="badge {color}">Predicción: <b>{pred_label}</b></span>',
                     unsafe_allow_html=True
                 )
-
-                # Explicación breve en español por clase predicha
-                EXPLAIN_ES = {
+    
+                # Explicación breve en español, indexada por la etiqueta en inglés
+                EXPLAIN = {
                     "Sinus Bradycardia": (
                         "Bradicardia sinusal: ritmo sinusal con **frecuencia baja**. "
                         "Puede ser fisiológica (deportistas, descanso) o por fármacos/hipotiroidismo; "
@@ -418,15 +409,15 @@ elif selected == "📊 Explorador":
                         "buscar y tratar la **causa subyacente**."
                     ),
                 }
-                st.warning(f"**Interpretación breve:** {EXPLAIN_ES.get(pred_label_en, 'Interpretación no disponible.')}")
-
-                # Barras con etiquetas en español
+                st.warning(f"**Interpretación breve:** {EXPLAIN.get(pred_label, 'Interpretación no disponible.')}")
+    
+                # Barras con etiquetas originales (inglés)
                 dfp = pd.DataFrame({
-                    "Clase (ES)": LABEL_NAMES_ES_ORDERED,
+                    "Clase": LABEL_NAMES,         # <-- sin traducción
                     "Probabilidad": probs
                 })
                 figp = go.Figure(go.Bar(
-                    x=dfp["Clase (ES)"],
+                    x=dfp["Clase"],
                     y=dfp["Probabilidad"],
                     text=[f"{p*100:.1f}%" for p in probs],
                     textposition="outside"
@@ -438,7 +429,6 @@ elif selected == "📊 Explorador":
                     xaxis_title=""
                 )
                 st.plotly_chart(figp, use_container_width=True)
-
+    
             except Exception as e:
                 st.error(f"Ocurrió un error durante la clasificación: {e}")
- 
