@@ -284,7 +284,7 @@ elif selected == "📊 Explorador":
                 x_minor=0.04, x_major=0.20, y_minor=0.1, y_major=0.5,
                 minor_color="rgba(255,204,204,0.5)",  # rojo suave + transparencia
                 major_color="rgba(255,153,153,0.8)",
-                minor_color="#ffcccc", major_color="#ff9999", minor_w=0.5, major_w=1.0
+                minor_w=0.5, major_w=1.0
             ))
 
         fig.update_layout(
