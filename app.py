@@ -359,87 +359,87 @@ elif selected == "📊 Explorador":
                 st.success(f"🧭 Conclusión: la **FC promedio ({hr_mean:.1f} lpm)** está **dentro** del rango [{lo}, {hi}] lpm.")
 
     # ========= Tab Clasificación =========
-with tab_cls:
-    st.markdown("Clasificación automática (4 clases) — *demo educativa*")
-
-    # Mapeo de etiquetas (internas -> visual en español)
-    LABEL_NAMES = ["Sinus Bradycardia", "Sinus Rhythm", "Atrial Fibrillation", "Sinus Tachycardia"]
-    LABELS_ES = {
-        "Sinus Bradycardia": "Bradicardia sinusal",
-        "Sinus Rhythm": "Ritmo sinusal",
-        "Atrial Fibrillation": "Fibrilación auricular",
-        "Sinus Tachycardia": "Taquicardia sinusal",
-    }
-    LABEL_NAMES_ES_ORDERED = [LABELS_ES[k] for k in LABEL_NAMES]
-
-    if st.button("🔎 Clasificar este registro"):
-        try:
-            model, device = load_classifier()
-            x = preprocess_12lead_for_model_from_base(rec_base)
-            with torch.no_grad():
-                logits = model(x.to(device))
-                probs = torch.softmax(logits, dim=1).cpu().numpy().ravel()
-
-            pred_idx = int(np.argmax(probs))
-            pred_label_en = LABEL_NAMES[pred_idx]
-            pred_label_es = LABELS_ES[pred_label_en]
-
-            # Badge solo con color por categoría
-            if pred_label_en == "Sinus Bradycardia":
-                color = "badge-warn"
-            elif pred_label_en == "Sinus Tachycardia":
-                color = "badge-warn"
-            elif pred_label_en == "Atrial Fibrillation":
-                color = "badge-alert"
-            else:
-                color = "badge-ok"
-
-            st.markdown(
-                f'<span class="badge {color}">Predicción: <b>{pred_label_es}</b></span>',
-                unsafe_allow_html=True
-            )
-
-            # Explicación breve en español por clase predicha
-            EXPLAIN_ES = {
-                "Sinus Bradycardia": (
-                    "Bradicardia sinusal: ritmo sinusal con **frecuencia baja**. "
-                    "Puede ser fisiológica (deportistas, descanso) o por fármacos/hipotiroidismo; "
-                    "valorar **síntomas** (mareos, síncope) y contexto clínico."
-                ),
-                "Sinus Rhythm": (
-                    "Ritmo sinusal: actividad auricular normal con onda P positiva y relación P–QRS 1:1. "
-                    "Frecuencia acorde al contexto clínico."
-                ),
-                "Atrial Fibrillation": (
-                    "Fibrilación auricular: **ritmo irregular** sin ondas P identificables; "
-                    "riesgo de **tromboembolismo**. Requiere valorar anticoagulación y control de frecuencia/ritmo."
-                ),
-                "Sinus Tachycardia": (
-                    "Taquicardia sinusal: ritmo sinusal con **frecuencia alta**. "
-                    "Suele ser respuesta a fiebre, dolor, hipovolemia, ansiedad o fármacos; "
-                    "buscar y tratar la **causa subyacente**."
-                ),
-            }
-            st.warning(f"**Interpretación breve:** {EXPLAIN_ES.get(pred_label_en, 'Interpretación no disponible.')}")
-
-            # Barras con etiquetas en español
-            dfp = pd.DataFrame({
-                "Clase (ES)": LABEL_NAMES_ES_ORDERED,
-                "Probabilidad": probs
-            })
-            figp = go.Figure(go.Bar(
-                x=dfp["Clase (ES)"],
-                y=dfp["Probabilidad"],
-                text=[f"{p*100:.1f}%" for p in probs],
-                textposition="outside"
-            ))
-            figp.update_yaxes(range=[0, 1.0])
-            figp.update_layout(
-                margin=dict(l=20, r=20, t=40, b=40),
-                yaxis_title="Probabilidad",
-                xaxis_title=""
-            )
-            st.plotly_chart(figp, use_container_width=True)
+    with tab_cls:
+        st.markdown("Clasificación automática (4 clases) — *demo educativa*")
+    
+        # Mapeo de etiquetas (internas -> visual en español)
+        LABEL_NAMES = ["Sinus Bradycardia", "Sinus Rhythm", "Atrial Fibrillation", "Sinus Tachycardia"]
+        LABELS_ES = {
+            "Sinus Bradycardia": "Bradicardia sinusal",
+            "Sinus Rhythm": "Ritmo sinusal",
+            "Atrial Fibrillation": "Fibrilación auricular",
+            "Sinus Tachycardia": "Taquicardia sinusal",
+        }
+        LABEL_NAMES_ES_ORDERED = [LABELS_ES[k] for k in LABEL_NAMES]
+    
+        if st.button("🔎 Clasificar este registro"):
+            try:
+                model, device = load_classifier()
+                x = preprocess_12lead_for_model_from_base(rec_base)
+                with torch.no_grad():
+                    logits = model(x.to(device))
+                    probs = torch.softmax(logits, dim=1).cpu().numpy().ravel()
+    
+                pred_idx = int(np.argmax(probs))
+                pred_label_en = LABEL_NAMES[pred_idx]
+                pred_label_es = LABELS_ES[pred_label_en]
+    
+                # Badge solo con color por categoría
+                if pred_label_en == "Sinus Bradycardia":
+                    color = "badge-warn"
+                elif pred_label_en == "Sinus Tachycardia":
+                    color = "badge-warn"
+                elif pred_label_en == "Atrial Fibrillation":
+                    color = "badge-alert"
+                else:
+                    color = "badge-ok"
+    
+                st.markdown(
+                    f'<span class="badge {color}">Predicción: <b>{pred_label_es}</b></span>',
+                    unsafe_allow_html=True
+                )
+    
+                # Explicación breve en español por clase predicha
+                EXPLAIN_ES = {
+                    "Sinus Bradycardia": (
+                        "Bradicardia sinusal: ritmo sinusal con **frecuencia baja**. "
+                        "Puede ser fisiológica (deportistas, descanso) o por fármacos/hipotiroidismo; "
+                        "valorar **síntomas** (mareos, síncope) y contexto clínico."
+                    ),
+                    "Sinus Rhythm": (
+                        "Ritmo sinusal: actividad auricular normal con onda P positiva y relación P–QRS 1:1. "
+                        "Frecuencia acorde al contexto clínico."
+                    ),
+                    "Atrial Fibrillation": (
+                        "Fibrilación auricular: **ritmo irregular** sin ondas P identificables; "
+                        "riesgo de **tromboembolismo**. Requiere valorar anticoagulación y control de frecuencia/ritmo."
+                    ),
+                    "Sinus Tachycardia": (
+                        "Taquicardia sinusal: ritmo sinusal con **frecuencia alta**. "
+                        "Suele ser respuesta a fiebre, dolor, hipovolemia, ansiedad o fármacos; "
+                        "buscar y tratar la **causa subyacente**."
+                    ),
+                }
+                st.warning(f"**Interpretación breve:** {EXPLAIN_ES.get(pred_label_en, 'Interpretación no disponible.')}")
+    
+                # Barras con etiquetas en español
+                dfp = pd.DataFrame({
+                    "Clase (ES)": LABEL_NAMES_ES_ORDERED,
+                    "Probabilidad": probs
+                })
+                figp = go.Figure(go.Bar(
+                    x=dfp["Clase (ES)"],
+                    y=dfp["Probabilidad"],
+                    text=[f"{p*100:.1f}%" for p in probs],
+                    textposition="outside"
+                ))
+                figp.update_yaxes(range=[0, 1.0])
+                figp.update_layout(
+                    margin=dict(l=20, r=20, t=40, b=40),
+                    yaxis_title="Probabilidad",
+                    xaxis_title=""
+                )
+                st.plotly_chart(figp, use_container_width=True)
 
         except Exception as e:
             st.error(f"Ocurrió un error durante la clasificación: {e}")
