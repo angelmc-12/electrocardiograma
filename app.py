@@ -422,7 +422,7 @@ with tab_cls:
                     "buscar y tratar la **causa subyacente**."
                 ),
             }
-            st.warning(f"🩺 **Interpretación breve:** {EXPLAIN_ES.get(pred_label_en, 'Interpretación no disponible.')}")
+            st.warning(f"**Interpretación breve:** {EXPLAIN_ES.get(pred_label_en, 'Interpretación no disponible.')}")
 
             # Barras con etiquetas en español
             dfp = pd.DataFrame({
