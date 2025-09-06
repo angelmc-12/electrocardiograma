@@ -357,10 +357,27 @@ elif selected == "📊 Explorador":
             else:
                 st.success(f"🧭 Conclusión: la **FC promedio ({hr_mean:.1f} lpm)** está **dentro** del rango [{lo}, {hi}] lpm.")
 
+    
+    import json
+    
     # ========= Tab Clasificación =========
-# ========= Tab Clasificación =========
     with tab_cls:
         st.markdown("Clasificación automática (4 clases) — *demo educativa*")
+    
+        # Cargar el orden de clases usado en entrenamiento
+        @st.cache_resource
+        def load_label_names():
+            try:
+                with open("models/class_order.json", "r") as f:
+                    names = json.load(f)
+                assert isinstance(names, list) and len(names) == 4
+                return names
+            except Exception as e:
+                st.warning(f"No se pudo cargar models/class_order.json ({e}). "
+                           "Se usará el orden por defecto, puede producir etiquetas erróneas.")
+                return ["Sinus Bradycardia", "Sinus Rhythm", "Atrial Fibrillation", "Sinus Tachycardia"]
+    
+        LABEL_NAMES = load_label_names()  # <-- ¡este es el que manda!
     
         if st.button("🔎 Clasificar este registro", key="classify_btn"):
             try:
@@ -371,16 +388,16 @@ elif selected == "📊 Explorador":
                     probs = torch.softmax(logits, dim=1).cpu().numpy().ravel()
     
                 pred_idx = int(np.argmax(probs))
-                pred_label = LABEL_NAMES[pred_idx]  # <-- Etiqueta original del modelo (inglés)
+                pred_label = LABEL_NAMES[pred_idx]
     
-                # Badge con color por categoría (sin traducción de etiquetas)
+                # Colorear badge según etiqueta (sin forzar traducciones)
                 if pred_label == "Sinus Bradycardia":
                     color = "badge-warn"
                 elif pred_label == "Sinus Tachycardia":
                     color = "badge-warn"
                 elif pred_label == "Atrial Fibrillation":
                     color = "badge-alert"
-                else:  # "Sinus Rhythm"
+                else:
                     color = "badge-ok"
     
                 st.markdown(
@@ -388,7 +405,7 @@ elif selected == "📊 Explorador":
                     unsafe_allow_html=True
                 )
     
-                # Explicación breve en español, indexada por la etiqueta en inglés
+                # Explicación breve (en español) indexada por la etiqueta en inglés
                 EXPLAIN = {
                     "Sinus Bradycardia": (
                         "Bradicardia sinusal: ritmo sinusal con **frecuencia baja**. "
@@ -411,24 +428,19 @@ elif selected == "📊 Explorador":
                 }
                 st.warning(f"**Interpretación breve:** {EXPLAIN.get(pred_label, 'Interpretación no disponible.')}")
     
-                # Barras con etiquetas originales (inglés)
-                dfp = pd.DataFrame({
-                    "Clase": LABEL_NAMES,         # <-- sin traducción
-                    "Probabilidad": probs
-                })
+                # Barras usando el mismo orden de clases cargado
+                dfp = pd.DataFrame({"Clase": LABEL_NAMES, "Probabilidad": probs})
                 figp = go.Figure(go.Bar(
-                    x=dfp["Clase"],
-                    y=dfp["Probabilidad"],
-                    text=[f"{p*100:.1f}%" for p in probs],
-                    textposition="outside"
+                    x=dfp["Clase"], y=dfp["Probabilidad"],
+                    text=[f"{p*100:.1f}%" for p in probs], textposition="outside"
                 ))
                 figp.update_yaxes(range=[0, 1.0])
-                figp.update_layout(
-                    margin=dict(l=20, r=20, t=40, b=40),
-                    yaxis_title="Probabilidad",
-                    xaxis_title=""
-                )
+                figp.update_layout(margin=dict(l=20, r=20, t=40, b=40),
+                                   yaxis_title="Probabilidad", xaxis_title="")
                 st.plotly_chart(figp, use_container_width=True)
     
             except Exception as e:
                 st.error(f"Ocurrió un error durante la clasificación: {e}")
+        
+                except Exception as e:
+                    st.error(f"Ocurrió un error durante la clasificación: {e}")
