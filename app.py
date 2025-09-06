@@ -266,24 +266,29 @@ elif selected == "📊 Explorador":
         # Figura principal (WebGL para fluidez)
         y0, y1 = nice_ylim(y_win)
         fig = go.Figure()
+        
+        # Señal principal (negro más visible)
         fig.add_trace(go.Scattergl(
             x=t_win, y=y_win, mode="lines", name=f"{lead_name}",
-            line=dict(width=1.2, color="black"),
+            line=dict(width=1.8, color="black"),  # <-- negro
             hovertemplate="t=%{x:.3f} s<br>V=%{y:.3f} mV<extra></extra>"
         ))
+        
+        # Picos R con color verde brillante
         if r_win.size > 0:
             fig.add_trace(go.Scattergl(
                 x=t_win[r_win], y=y_win[r_win], mode="markers", name="Picos R",
-                marker=dict(size=7, symbol="diamond", color="limegreen"),
+                marker=dict(size=9, symbol="diamond", color="limegreen"),  # <-- verde fuerte
                 hovertemplate="R @ %{x:.3f} s<extra></extra>"
             ))
-
+        
+        # Cuadrícula tipo papel EKG (con menor opacidad para no "tapar")
         if show_grid:
             fig.update_layout(shapes=apply_ekg_grid_shapes(
                 x0=0, x1=seconds, y0=y0, y1=y1,
                 x_minor=0.04, x_major=0.20, y_minor=0.1, y_major=0.5,
                 minor_color="rgba(255,204,204,0.5)",  # rojo suave + transparencia
-                major_color="rgba(255,153,153,0.8)",
+                major_color="rgba(255,153,153,0.8)",  # rojo un poco más fuerte
                 minor_w=0.5, major_w=1.0
             ))
 
