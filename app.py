@@ -387,13 +387,13 @@ with tab_cls:
 
             # Badge y nota contextual
             if pred_label_en == "Sinus Bradycardia":
-                color = "badge-warn"; note = "Frecuencia baja — verificar contexto clínico."
+                color = "badge-warn";
             elif pred_label_en == "Sinus Tachycardia":
-                color = "badge-warn"; note = "Frecuencia alta — verificar desencadenantes."
+                color = "badge-warn";
             elif pred_label_en == "Atrial Fibrillation":
-                color = "badge-alert"; note = "Ritmo irregular — evaluar trazado completo."
+                color = "badge-alert";
             else:
-                color = "badge-ok"; note = "Ritmo sinusal."
+                color = "badge-ok";
 
             st.markdown(
                 f'<span class="badge {color}">Predicción: <b>{pred_label_es}</b></span> '
