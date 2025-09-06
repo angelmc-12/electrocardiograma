@@ -118,7 +118,7 @@ if selected == "📘 Inicio":
     
     st.caption("⚠️ Importante: este recurso es de carácter educativo y no reemplaza criterio ni diagnóstico clínico profesional.")
 
-    st.subheader("👨‍💻 Equipo / Autoría")
+    st.subheader("👨‍💻 Equipo")
     st.markdown("""
     Esta herramienta se desarrolló con foco en pedagogía, visualización y análisis reproducible con los siguientes miembros:
 
